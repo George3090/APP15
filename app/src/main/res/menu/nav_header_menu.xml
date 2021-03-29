@@ -9,11 +9,11 @@
     <item
 
         android:icon="@drawable/ic_phone"
-        android:title="Phone"/>
+        android:title="Contact Police"/>
     <item
 
         android:icon="@drawable/ic_mail"
-        android:title="Mail"/>
+        android:title="Messages"/>
     <item
 
         android:icon="@drawable/ic_settings"
