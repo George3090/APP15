@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -12,11 +13,19 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.ass15.Models.User;
 import com.example.ass15.R;
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreSettings;
+
 
 public class Register extends AppCompatActivity {
     private TextView Logo;
@@ -24,6 +33,7 @@ public class Register extends AppCompatActivity {
     private ProgressBar progressBar;
     private Button RegisterUser;
     FirebaseAuth fAuth;
+    private FirebaseFirestore mDb;
 
 
     @Override
@@ -43,6 +53,7 @@ public class Register extends AppCompatActivity {
         progressBar = (ProgressBar)findViewById(R.id.progressBar);
 
         fAuth = FirebaseAuth.getInstance();
+        mDb = FirebaseFirestore.getInstance();
 
 
         Logo.setOnClickListener(new View.OnClickListener() {
@@ -88,25 +99,93 @@ public class Register extends AppCompatActivity {
                     UserFirstLineOfAddress.setError("Address is required");
                     return;
                 }
-              // Add password check
+                else {
+                    registerNewEmail(Email, Password, Age, FullName);
+                }
 
-                Toast.makeText(Register.this,"Data Valid",Toast.LENGTH_SHORT).show();
+                /**
+                 * Register a new email and password to Firebase Authentication
+                 * @param email
+                 * @param password
+                 */
+
+//              // Add password check
+//
+//                Toast.makeText(Register.this,"Data Valid",Toast.LENGTH_SHORT).show();
+//
+//
+//                fAuth.createUserWithEmailAndPassword(Email,Password).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
+//                    @Override
+//                    public void onSuccess(AuthResult authResult) {
+//                        //Redirect the user to new activity
+//                        startActivity(new Intent(getApplicationContext(),MainActivity.class));
+//                        finish();
+//
+//                    }
+//                }).addOnFailureListener(new OnFailureListener() {
+//                    @Override
+//                    public void onFailure(@NonNull Exception e) {
+//                        Toast.makeText(Register.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+//                    }
+//                });
+//
+            }
+
+            private void registerNewEmail(String Email, String Password, String Age, String Fullname) {
+
+                FirebaseAuth.getInstance().createUserWithEmailAndPassword(Email, Password)
+                        .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                            @Override
+                            public void onComplete(@NonNull Task<AuthResult> task) {
+                                // Log.d(TAG, "createUserWithEmail:onComplete:" + task.isSuccessful());
+
+                                if (task.isSuccessful()){
+                                    // Log.d(TAG, "onComplete: AuthState: " + FirebaseAuth.getInstance().getCurrentUser().getUid());
+
+                                    //insert some default data
+                                    User user = new User();
+                                    user.setEmail(Email);
+                                    user.setAge(Age);
+                                    user.setUsername(Email);
+                                    user.setUsername(Email.substring(0, Email.indexOf("@")));
+                                    user.setUser_id(FirebaseAuth.getInstance().getUid());
+
+                                    FirebaseFirestoreSettings settings = new FirebaseFirestoreSettings.Builder()
+                                            //.setTimestampsInSnapshotsEnabled(true)
+                                            .build();
+                                    mDb.setFirestoreSettings(settings);
+
+                                    DocumentReference newUserRef = mDb
+                                            .collection("collection_users")
+                                            .document(FirebaseAuth.getInstance().getUid());
+
+                                    newUserRef.set(user).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                        @Override
+                                        public void onComplete(@NonNull Task<Void> task) {
 
 
-                fAuth.createUserWithEmailAndPassword(Email,Password).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
-                    @Override
-                    public void onSuccess(AuthResult authResult) {
-                        //Redirect the user to new activity
-                        startActivity(new Intent(getApplicationContext(),MainActivity.class));
-                        finish();
+                                            if(task.isSuccessful()){
+                                                Intent intent = new Intent(Register.this, Login.class);
+                                                startActivity(intent);
+                                                finish();
+                                            }else{
+                                                View parentLayout = findViewById(android.R.id.content);
+                                                Snackbar.make(parentLayout, "Something went wrong.", Snackbar.LENGTH_SHORT).show();
+                                            }
+                                        }
+                                    });
 
-                    }
-                }).addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(Register.this, e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+                                }
+                                else {
+                                    View parentLayout = findViewById(android.R.id.content);
+                                    Snackbar.make(parentLayout, "Something went wrong.", Snackbar.LENGTH_SHORT).show();
+
+                                }
+
+                                // ...
+                            }
+                        });
+
 
             }
         });

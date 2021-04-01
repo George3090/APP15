@@ -34,11 +34,18 @@ import com.google.android.gms.maps.MapView;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
+//firebase
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.GeoPoint;
+
+
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     //Widgets
     private MapView mMapView;
     private DrawerLayout drawer;
+    private GoogleMap mMap;
+    private static final float DEFAULT_ZOOM = 15f;
 
     @Override
     public void setSupportActionBar(@Nullable Toolbar toolbar) {
@@ -48,7 +55,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     //VAR
     private static final String MAPVIEW_BUNDLE_KEY = "MapViewBundleKey";
     private boolean mLocationPermissionGranted = false; // need to implement this method
-    public FusedLocationProviderClient mFusedLocationClient; // need to implement last know location method
+    private FusedLocationProviderClient mFusedLocationClient; // need to implement last know location method
 
 
 
@@ -74,14 +81,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         mMapView = (MapView) findViewById(R.id.map);
         mMapView.onCreate(mapViewBundle);
-
         mMapView.getMapAsync(this);
 
     }
 
 
 
-/*
+//Need to move camera to user location
 private void getLastKnownLocation(){
     //Log.d(TAG, "getLastKnownLocation: called.");
     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -92,12 +98,16 @@ private void getLastKnownLocation(){
         public void onComplete(@NonNull Task<Location> task) {
             if (task.isSuccessful()) {
                 Location location = task.getResult();
-                GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
+                GeoPoint geoPoint = new GeoPoint(location.getLatitude(),location.getLongitude());
+
+
             }
         }
     });
 }
-*/
+
+
+
 
     @Override
     public void onBackPressed() {
@@ -124,12 +134,14 @@ private void getLastKnownLocation(){
 
     @Override
     public void onResume() {
+
         super.onResume();
         mMapView.onResume();
     }
 
     @Override
     public void onStart() {
+
         super.onStart();
         mMapView.onStart();
     }

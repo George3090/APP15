@@ -9,7 +9,7 @@
     <item
 
         android:icon="@drawable/ic_phone"
-        android:title="Contact Police"/>
+        android:title="Call Police"/>
     <item
 
         android:icon="@drawable/ic_mail"
