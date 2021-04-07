@@ -6,7 +6,9 @@ import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+
 import android.Manifest;
+import android.app.ActivityManager;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -25,6 +27,8 @@ import android.widget.Toast;
 
 import com.example.ass15.Models.User;
 import com.example.ass15.Models.UserLocation;
+import com.example.ass15.UserClient;
+import com.example.ass15.services.LocationService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -57,13 +61,12 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 
 
-
 import static com.example.ass15.Utility.Constants.ERROR_DIALOG_REQUEST;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ENABLE_GPS;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
-
+    private static final String TAG = "MainActivity";
     //Widgets
     private MapView mMapView;
     private DrawerLayout drawer;
@@ -81,8 +84,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean mLocationPermissionGranted = false;
     private FusedLocationProviderClient mFusedLocationClient;
     private UserLocation mUserLocation;
-
-
 
 
     @Override
@@ -111,11 +112,37 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMapView = (MapView) findViewById(R.id.map);
         mMapView.onCreate(mapViewBundle);
         mMapView.getMapAsync(this);
-
-
-
+        getUserDetails();
+        checkMapServices();
 
     }
+    private void startLocationService(){
+        if(!isLocationServiceRunning()){
+            Intent serviceIntent = new Intent(this, LocationService.class);
+//        this.startService(serviceIntent);
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O){
+
+                MainActivity.this.startForegroundService(serviceIntent);
+            }else{
+                startService(serviceIntent);
+            }
+        }
+    }
+
+    private boolean isLocationServiceRunning() {
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)){
+            if("com.codingwithmitch.googledirectionstest.services.LocationService".equals(service.service.getClassName())) {
+                Log.d(TAG, "isLocationServiceRunning: location service is already running.");
+                return true;
+            }
+        }
+        Log.d(TAG, "isLocationServiceRunning: location service is not running.");
+        return false;
+    }
+
+
 
     private void getUserDetails(){
         if(mUserLocation == null){
@@ -128,6 +155,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if(task.isSuccessful()){
                         User user = task.getResult().toObject(User.class);
                         mUserLocation.setUser(user);
+                        ((UserClient)getApplicationContext()).setUser(user);
                         getLastKnownLocation();
                     }
                 }
@@ -138,9 +166,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-
     private void getLastKnownLocation(){
-        //Log.d(TAG, "getLastKnownLocation: called.");
+        Log.d(TAG, "getLastKnownLocation: called.");
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
@@ -150,11 +177,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (task.isSuccessful()) {
                     Location location = task.getResult();
                     GeoPoint geoPoint = new GeoPoint(location.getLatitude(),location.getLongitude());
-
                     mUserLocation.setGeo_point(geoPoint);
                     mUserLocation.setTimestamp(null);
                     saveUserLocation();
-
+                    startLocationService();
                 }
             }
         });
@@ -282,12 +308,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
-
-
-
-
-
-
     @Override
     public void onBackPressed() {
         if(drawer.isDrawerOpen(GravityCompat.START)){
@@ -296,7 +316,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             super.onBackPressed();
         }
     }
-
 
     @Override
     public void onSaveInstanceState(Bundle outState) {
@@ -311,7 +330,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMapView.onSaveInstanceState(mapViewBundle);
         getUserDetails();
     }
-
 
     @Override
     public void onResume() {
@@ -353,7 +371,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
         map.setMyLocationEnabled(true);
-        getUserDetails();
+
     }
 
     @Override
