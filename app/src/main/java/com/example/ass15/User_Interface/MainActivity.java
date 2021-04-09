@@ -14,13 +14,19 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
 import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.nfc.Tag;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -32,7 +38,9 @@ import com.example.ass15.services.LocationService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -61,6 +69,10 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import static com.example.ass15.Utility.Constants.ERROR_DIALOG_REQUEST;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ENABLE_GPS;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION;
@@ -73,6 +85,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleMap mMap;
     private static final float DEFAULT_ZOOM = 15f;
     private FirebaseFirestore mDb;
+    private EditText mSearchBox;
 
     @Override
     public void setSupportActionBar(@Nullable Toolbar toolbar) {
@@ -84,6 +97,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean mLocationPermissionGranted = false;
     private FusedLocationProviderClient mFusedLocationClient;
     private UserLocation mUserLocation;
+
+  
 
 
     @Override
@@ -102,7 +117,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mDb = FirebaseFirestore.getInstance();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-       // getUserDetails();
+        // getUserDetails();
 
 
         Bundle mapViewBundle = null;
@@ -113,18 +128,70 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMapView.onCreate(mapViewBundle);
         mMapView.getMapAsync(this);
         getUserDetails();
-        checkMapServices();
+        //checkMapServices();
 
+        mSearchBox = (EditText) findViewById(R.id.input_search);
+        init();
     }
-    private void startLocationService(){
-        if(!isLocationServiceRunning()){
+
+    private void init(){
+        Log.d(TAG,"init:initializing");
+        mSearchBox.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView textView, int actionId, KeyEvent event ) {
+                Log.d(TAG,"init:action");
+                if(actionId == EditorInfo.IME_ACTION_SEARCH
+                        || actionId == EditorInfo.IME_ACTION_DONE
+                        || event.getAction() == KeyEvent.ACTION_DOWN
+                        || event.getAction() == KeyEvent.KEYCODE_ENTER){
+                    // execute method for searching
+                    geoLocate();
+                }
+                return false;
+            }
+        });
+    }
+
+    private void geoLocate(){
+        Log.d(TAG,"geoLocate: geolocation");
+        String searchString = mSearchBox.getText().toString();
+        Geocoder geocoder = new Geocoder(MainActivity.this);
+        List<Address> list = new ArrayList<>();
+        try {
+            list = geocoder.getFromLocationName(searchString, 1);
+
+        }catch (IOException e){
+            Log.e(TAG,"geoLocate: Ioe exeption" + e.getMessage());
+        }
+        if (list.size() > 0){
+            Address address = list.get(0);
+            Log.d(TAG,"geoLocate: found location" + address.toString());
+            Toast.makeText(this, address.toString(), Toast.LENGTH_SHORT).show();
+            moveCamera(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_ZOOM, address.getAddressLine(0) );
+        }
+    }
+
+
+    private void moveCamera(LatLng latLng, float zoom, String title){
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
+        MarkerOptions options = new MarkerOptions()
+                .position(latLng)
+                .title(title);
+        mMap.addMarker(options);
+    }
+
+
+
+
+    private void startLocationService() {
+        if (!isLocationServiceRunning()) {
             Intent serviceIntent = new Intent(this, LocationService.class);
 //        this.startService(serviceIntent);
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O){
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
 
                 MainActivity.this.startForegroundService(serviceIntent);
-            }else{
+            } else {
                 startService(serviceIntent);
             }
         }
@@ -132,8 +199,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean isLocationServiceRunning() {
         ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)){
-            if("com.codingwithmitch.googledirectionstest.services.LocationService".equals(service.service.getClassName())) {
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if ("com.example.ass15.services.LocationService".equals(service.service.getClassName())) {
                 Log.d(TAG, "isLocationServiceRunning: location service is already running.");
                 return true;
             }
@@ -143,19 +210,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-
-    private void getUserDetails(){
-        if(mUserLocation == null){
+    private void getUserDetails() {
+        if (mUserLocation == null) {
             mUserLocation = new UserLocation();
             DocumentReference userRef = mDb.collection("collection_users").
                     document(FirebaseAuth.getInstance().getUid());
             userRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
                 @Override
                 public void onComplete(@NonNull Task<DocumentSnapshot> task) {
-                    if(task.isSuccessful()){
+                    if (task.isSuccessful()) {
                         User user = task.getResult().toObject(User.class);
                         mUserLocation.setUser(user);
-                        ((UserClient)getApplicationContext()).setUser(user);
+                        ((UserClient) getApplicationContext()).setUser(user);
                         getLastKnownLocation();
                     }
                 }
@@ -166,7 +232,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-    private void getLastKnownLocation(){
+
+
+
+    private void getLastKnownLocation() {
         Log.d(TAG, "getLastKnownLocation: called.");
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
@@ -174,27 +243,33 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mFusedLocationClient.getLastLocation().addOnCompleteListener(new OnCompleteListener<Location>() {
             @Override
             public void onComplete(@NonNull Task<Location> task) {
-                if (task.isSuccessful()) {
+                if (task.isSuccessful() && task.getResult() != null) {
+
                     Location location = task.getResult();
-                    GeoPoint geoPoint = new GeoPoint(location.getLatitude(),location.getLongitude());
+                    GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
                     mUserLocation.setGeo_point(geoPoint);
                     mUserLocation.setTimestamp(null);
+//                    moveCamera(new LatLng(location.getLatitude(), location.getLongitude()),
+//                                DEFAULT_ZOOM,
+//                                "My Location");
+
                     saveUserLocation();
                     startLocationService();
+                    init();
                 }
             }
         });
     }
 
-    private void saveUserLocation(){
-        if(mUserLocation != null){
+    private void saveUserLocation() {
+        if (mUserLocation != null) {
             DocumentReference locationRef = mDb.
                     collection("User Location").
                     document(FirebaseAuth.getInstance().getUid());
             locationRef.set(mUserLocation).addOnCompleteListener(new OnCompleteListener<Void>() {
                 @Override
                 public void onComplete(@NonNull Task<Void> task) {
-                    if(task.isSuccessful()){
+                    if (task.isSuccessful()) {
 
                     }
                 }
@@ -203,11 +278,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-
     // test
-    private boolean checkMapServices(){
-        if(isServicesOK()){
-            if(isMapsEnabled()){
+    private boolean checkMapServices() {
+        if (isServicesOK()) {
+            if (isMapsEnabled()) {
                 return true;
             }
         }
@@ -228,10 +302,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         alert.show();
     }
 
-    public boolean isMapsEnabled(){
-        final LocationManager manager = (LocationManager) getSystemService( Context.LOCATION_SERVICE );
+    public boolean isMapsEnabled() {
+        final LocationManager manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
-        if ( !manager.isProviderEnabled( LocationManager.GPS_PROVIDER ) ) {
+        if (!manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             buildAlertMessageNoGps();
             return false;
         }
@@ -256,20 +330,19 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    public boolean isServicesOK(){
+    public boolean isServicesOK() {
         int available = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(MainActivity.this);
 
-        if(available == ConnectionResult.SUCCESS){
+        if (available == ConnectionResult.SUCCESS) {
             //everything is fine and the user can make map requests
-           // Log.d(TAG, "isServicesOK: Google Play Services is working");
+            // Log.d(TAG, "isServicesOK: Google Play Services is working");
             return true;
-        }
-        else if(GoogleApiAvailability.getInstance().isUserResolvableError(available)){
+        } else if (GoogleApiAvailability.getInstance().isUserResolvableError(available)) {
             //an error occured but we can resolve it
             //Log.d(TAG, "isServicesOK: an error occured but we can fix it");
             Dialog dialog = GoogleApiAvailability.getInstance().getErrorDialog(MainActivity.this, available, ERROR_DIALOG_REQUEST);
             dialog.show();
-        }else{
+        } else {
             Toast.makeText(this, "You can't make map requests", Toast.LENGTH_SHORT).show();
         }
         return false;
@@ -297,10 +370,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         //Log.d(TAG, "onActivityResult: called.");
         switch (requestCode) {
             case PERMISSIONS_REQUEST_ENABLE_GPS: {
-                if(mLocationPermissionGranted){
+                if (mLocationPermissionGranted) {
                     getUserDetails();
-                }
-                else{
+                } else {
                     getLocationPermission();
                 }
             }
@@ -310,7 +382,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onBackPressed() {
-        if(drawer.isDrawerOpen(GravityCompat.START)){
+        if (drawer.isDrawerOpen(GravityCompat.START)) {
             drawer.closeDrawer(GravityCompat.START);
         } else {
             super.onBackPressed();
@@ -335,25 +407,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onResume() {
         super.onResume();
         mMapView.onResume();
-        if(checkMapServices()){
-            if(mLocationPermissionGranted){
-                getUserDetails();}}
-        else{
+        if (checkMapServices()) {
+            if (mLocationPermissionGranted) {
+                getUserDetails();
+            }
+        } else {
             getLocationPermission();
         }
     }
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        mMapView.onStart();
-        if(checkMapServices()){
-            if(mLocationPermissionGranted){
-                getUserDetails();}}
-        else{
-            getLocationPermission();
-        }
-    }
+
 
     @Override
     public void onStop() {
@@ -371,14 +434,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
         map.setMyLocationEnabled(true);
+        init();
 
     }
 
-    @Override
-    public void onPause() {
-        mMapView.onPause();
-        super.onPause();
-    }
+
 
     @Override
     public void onDestroy() {
