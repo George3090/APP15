@@ -6,7 +6,7 @@
     android:id="@+id/drawer_layout"
     android:fitsSystemWindows="true"
     tools:context=".User_Interface.MainActivity"
-    tools:openDrawer="stop">
+    tools:openDrawer="start">
 
 
     <LinearLayout
@@ -24,21 +24,22 @@
         android:elevation="4dp">
     </androidx.appcompat.widget.Toolbar>
 
-    <FrameLayout
+
+    <RelativeLayout
         android:id="@+id/Fragment_main"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <com.google.android.gms.maps.MapView
-            android:id="@+id/map"
-            class="com.google.android.gms.maps.SupportMapFragment"
+        <fragment xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
+            android:layout_height="match_parent"
+            android:id="@+id/map"
+            tools:context=".MapsActivity"
+            android:name="com.google.android.gms.maps.SupportMapFragment" />
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="10dp"
             android:layout_marginRight="10dp"
             android:layout_marginLeft="10dp"
             android:elevation="10dp"
@@ -62,14 +63,11 @@
                 android:background="@null"
                 android:hint="Enter Address"
                 android:imeOptions="actionSearch"
+                android:inputType="textNoSuggestions"
                 />
-
-
-
         </RelativeLayout>
 
-
-    </FrameLayout>
+    </RelativeLayout>
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView

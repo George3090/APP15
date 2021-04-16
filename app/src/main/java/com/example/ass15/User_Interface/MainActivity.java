@@ -27,6 +27,7 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,12 +57,14 @@ import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.FragmentActivity;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
 //firebase
+import com.google.android.libraries.places.api.Places;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -76,21 +79,44 @@ import java.util.List;
 import static com.example.ass15.Utility.Constants.ERROR_DIALOG_REQUEST;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ENABLE_GPS;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION;
+import com.google.maps.GeoApiContext;
 
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+
+
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback{
     private static final String TAG = "MainActivity";
-    //Widgets
-    private MapView mMapView;
-    private DrawerLayout drawer;
-    private GoogleMap mMap;
-    private static final float DEFAULT_ZOOM = 15f;
-    private FirebaseFirestore mDb;
-    private EditText mSearchBox;
+
 
     @Override
     public void setSupportActionBar(@Nullable Toolbar toolbar) {
         super.setSupportActionBar(toolbar);
     }
+
+    @Override
+    public void onMapReady(GoogleMap map) {
+        Toast.makeText(this, "Map is Ready", Toast.LENGTH_SHORT).show();
+        //map.addMarker(new MarkerOptions().position(new LatLng(51.481583, -3.179090)).title("Marker"));
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        map.setMyLocationEnabled(true);
+        mGoogleMap = map;
+        init();
+    }
+
+    //Widgets
+    private MapView mMapView;
+    private DrawerLayout drawer;
+    private GoogleMap mGoogleMap;
+    private static final float DEFAULT_ZOOM = 15f;
+    private FirebaseFirestore mDb;
+    private GeoApiContext mGeoApiContext;
+    public EditText mSearchBox;
+
 
     //VAR
     private static final String MAPVIEW_BUNDLE_KEY = "MapViewBundleKey";
@@ -98,13 +124,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FusedLocationProviderClient mFusedLocationClient;
     private UserLocation mUserLocation;
 
-  
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+
 
         //Nav bar
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -117,40 +146,58 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mDb = FirebaseFirestore.getInstance();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        // getUserDetails();
 
 
-        Bundle mapViewBundle = null;
-        if (savedInstanceState != null) {
-            mapViewBundle = savedInstanceState.getBundle(MAPVIEW_BUNDLE_KEY);
-        }
-        mMapView = (MapView) findViewById(R.id.map);
-        mMapView.onCreate(mapViewBundle);
-        mMapView.getMapAsync(this);
-        getUserDetails();
-        //checkMapServices();
+//        mMapView = (MapView) findViewById(R.id.map);
+        //initGoogleMap(savedInstanceState);
 
-        mSearchBox = (EditText) findViewById(R.id.input_search);
+
+
+        getUserDetails(); // this should be called once the system checks map services
+        //mSearchBox = findViewById(R.id.input_search);
+        mSearchBox = findViewById(R.id.input_search);
         init();
+
     }
 
+
+
+//    private void initGoogleMap(Bundle savedInstanceState) {
+//        // *** IMPORTANT ***
+//        // MapView requires that the Bundle you pass contain _ONLY_ MapView SDK
+//        // objects or sub-Bundles.
+//        Bundle mapViewBundle = null;
+//        if (savedInstanceState != null) {
+//            mapViewBundle = savedInstanceState.getBundle(MAPVIEW_BUNDLE_KEY);
+//        }
+//        mMapView.onCreate(mapViewBundle);
+//        mMapView.getMapAsync(this);
+//        if(mGeoApiContext == null){
+//            mGeoApiContext = new GeoApiContext.Builder()
+//                    .apiKey(getString(R.string.google_maps_key))
+//                    .build();
+//        }
+//    }
+
+
     private void init(){
-        Log.d(TAG,"init:initializing");
+        Log.d(TAG,"init:initializing1");
         mSearchBox.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
-            public boolean onEditorAction(TextView textView, int actionId, KeyEvent event ) {
-                Log.d(TAG,"init:action");
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent keyEvent) {
                 if(actionId == EditorInfo.IME_ACTION_SEARCH
                         || actionId == EditorInfo.IME_ACTION_DONE
-                        || event.getAction() == KeyEvent.ACTION_DOWN
-                        || event.getAction() == KeyEvent.KEYCODE_ENTER){
-                    // execute method for searching
+                        || keyEvent.getAction() == KeyEvent.ACTION_DOWN
+                        || keyEvent.getAction() == KeyEvent.KEYCODE_ENTER){
+
+                    //execute our method for searching
                     geoLocate();
                 }
                 return false;
             }
         });
     }
+
 
     private void geoLocate(){
         Log.d(TAG,"geoLocate: geolocation");
@@ -166,21 +213,23 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (list.size() > 0){
             Address address = list.get(0);
             Log.d(TAG,"geoLocate: found location" + address.toString());
-            Toast.makeText(this, address.toString(), Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, address.toString(), Toast.LENGTH_SHORT).show();
             moveCamera(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_ZOOM, address.getAddressLine(0) );
         }
     }
 
 
     private void moveCamera(LatLng latLng, float zoom, String title){
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
+        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
         MarkerOptions options = new MarkerOptions()
                 .position(latLng)
                 .title(title);
-        mMap.addMarker(options);
+        mGoogleMap.addMarker(options);
     }
 
-
+    private void moveCameraNoMarker(LatLng latLng, float zoom, String title){
+        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
+    }
 
 
     private void startLocationService() {
@@ -223,17 +272,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         mUserLocation.setUser(user);
                         ((UserClient) getApplicationContext()).setUser(user);
                         getLastKnownLocation();
+
                     }
                 }
             });
         } else {
             getLastKnownLocation();
+
         }
     }
-
-
-
-
 
     private void getLastKnownLocation() {
         Log.d(TAG, "getLastKnownLocation: called.");
@@ -249,13 +296,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     GeoPoint geoPoint = new GeoPoint(location.getLatitude(), location.getLongitude());
                     mUserLocation.setGeo_point(geoPoint);
                     mUserLocation.setTimestamp(null);
-//                    moveCamera(new LatLng(location.getLatitude(), location.getLongitude()),
-//                                DEFAULT_ZOOM,
-//                                "My Location");
+                    moveCameraNoMarker(new LatLng(location.getLatitude(), location.getLongitude()),
+                                DEFAULT_ZOOM,
+                                "My Location");
 
                     saveUserLocation();
                     startLocationService();
-                    init();
                 }
             }
         });
@@ -276,6 +322,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             });
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     // test
@@ -359,6 +417,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     mLocationPermissionGranted = true;
+
                 }
             }
         }
@@ -380,6 +439,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     @Override
     public void onBackPressed() {
         if (drawer.isDrawerOpen(GravityCompat.START)) {
@@ -389,24 +462,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    @Override
-    public void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-
-        Bundle mapViewBundle = outState.getBundle(MAPVIEW_BUNDLE_KEY);
-        if (mapViewBundle == null) {
-            mapViewBundle = new Bundle();
-            outState.putBundle(MAPVIEW_BUNDLE_KEY, mapViewBundle);
-        }
-
-        mMapView.onSaveInstanceState(mapViewBundle);
-        getUserDetails();
-    }
+//    @Override
+//    public void onSaveInstanceState(Bundle outState) {
+//        super.onSaveInstanceState(outState);
+//
+//        Bundle mapViewBundle = outState.getBundle(MAPVIEW_BUNDLE_KEY);
+//        if (mapViewBundle == null) {
+//            mapViewBundle = new Bundle();
+//            outState.putBundle(MAPVIEW_BUNDLE_KEY, mapViewBundle);
+//        }
+//
+//        mMapView.onSaveInstanceState(mapViewBundle);
+//        getUserDetails();
+//    }
 
     @Override
     public void onResume() {
         super.onResume();
-        mMapView.onResume();
+//        mMapView.onResume();
         if (checkMapServices()) {
             if (mLocationPermissionGranted) {
                 getUserDetails();
@@ -416,39 +489,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+//    @Override
+//    public void onStop() {
+//        super.onStop();
+//        mMapView.onStop();
+//    }
+//
+//
+//    @Override
+//    public void onDestroy() {
+//        mMapView.onDestroy();
+//        super.onDestroy();
+//    }
+//
+//    @Override
+//    public void onLowMemory() {
+//        super.onLowMemory();
+//        mMapView.onLowMemory();
+//    }
 
 
-    @Override
-    public void onStop() {
-        super.onStop();
-        mMapView.onStop();
-    }
-
-    @Override
-    public void onMapReady(GoogleMap map) {
-        map.addMarker(new MarkerOptions().position(new LatLng(51.481583, -3.179090)).title("Marker"));
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        map.setMyLocationEnabled(true);
-        init();
-
-    }
-
-
-
-    @Override
-    public void onDestroy() {
-        mMapView.onDestroy();
-        super.onDestroy();
-    }
-
-    @Override
-    public void onLowMemory() {
-        super.onLowMemory();
-        mMapView.onLowMemory();
-    }
 }
