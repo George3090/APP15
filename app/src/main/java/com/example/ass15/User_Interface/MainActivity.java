@@ -23,6 +23,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.nfc.Tag;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -34,6 +35,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 
+import com.example.ass15.Models.PolylineData;
 import com.example.ass15.Models.User;
 import com.example.ass15.Models.UserLocation;
 import com.example.ass15.UserClient;
@@ -50,6 +52,8 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.example.ass15.R;
 
@@ -62,6 +66,8 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
@@ -82,12 +88,18 @@ import java.util.List;
 import static com.example.ass15.Utility.Constants.ERROR_DIALOG_REQUEST;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ENABLE_GPS;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION;
+
+import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
+import com.google.maps.PendingResult;
+import com.google.maps.internal.PolylineEncoding;
+import com.google.maps.model.DirectionsResult;
+import com.google.maps.model.DirectionsRoute;
 
 
-
-
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener {
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
+        GoogleMap.OnInfoWindowClickListener,
+        GoogleMap.OnPolylineClickListener{
     private static final String TAG = "MainActivity";
 
 
@@ -109,6 +121,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         map.setMyLocationEnabled(true);
         mGoogleMap = map;
         init();
+        mGoogleMap.setOnPolylineClickListener(this);
     }
 
     //Widgets
@@ -117,7 +130,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleMap mGoogleMap;
     private static final float DEFAULT_ZOOM = 15f;
     private FirebaseFirestore mDb;
-    private GeoApiContext mGeoApiContext;
     public EditText mSearchBox;
 
 
@@ -127,6 +139,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FusedLocationProviderClient mFusedLocationClient;
     private UserLocation mUserLocation;
     private static final int REQUEST_CALL = 1;
+    private GeoApiContext mGeoApiContext = null;
+    private ArrayList<PolylineData> mPolyLinesData = new ArrayList<>();
+    private ArrayList<Marker> mTripMarker = new ArrayList<>();
+    private Marker mSelectedMarker = null;
+
 
 
 
@@ -163,7 +180,217 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mSearchBox = findViewById(R.id.input_search);
         init();
 
+        //testAPI
+        if(mGeoApiContext == null){
+            mGeoApiContext = new GeoApiContext.Builder()
+                    .apiKey("AIzaSyD2qy1sj-PUts2MqLmL75SzPtZsDXgTOIQ")
+                    .build();
+        }
+
     }
+
+    private void calculateDirections(Marker marker){
+        Log.d(TAG, "calculateDirections: calculating directions.");
+
+        com.google.maps.model.LatLng destination = new com.google.maps.model.LatLng(
+                marker.getPosition().latitude,
+                marker.getPosition().longitude
+        );
+        DirectionsApiRequest directions = new DirectionsApiRequest(mGeoApiContext);
+
+        directions.alternatives(true);
+        directions.origin(
+                new com.google.maps.model.LatLng(
+                        mUserLocation.getGeo_point().getLatitude(),
+                        mUserLocation.getGeo_point().getLongitude()
+                )
+        );
+        Log.d(TAG, "calculateDirections: destination: " + destination.toString());
+        directions.destination(destination).setCallback(new PendingResult.Callback<DirectionsResult>() {
+            @Override
+            public void onResult(DirectionsResult result) {
+                Log.d(TAG, "onResult: routes: " + result.routes[0].toString());
+                Log.d(TAG, "onResult: geocodedWayPoints: " + result.geocodedWaypoints[0].toString());
+                addPolylinesToMap(result);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                Log.e(TAG, "onFailure: " + e.getMessage() );
+
+            }
+        });
+    }
+
+    @Override
+    public void onInfoWindowClick(final Marker marker) {
+
+            final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage(marker.getSnippet())
+                    .setCancelable(true)
+                    .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                        public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+
+                            resetSelectedMarker();
+                            mSelectedMarker = marker;
+                            calculateDirections(marker);
+                            dialog.dismiss();
+                        }
+                    })
+                    .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                        public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                            dialog.cancel();
+                        }
+                    });
+            final AlertDialog alert = builder.create();
+            alert.show();
+
+    }
+
+
+    /*
+    Adding polylines to the map
+     */
+
+    private void addPolylinesToMap(final DirectionsResult result){
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "run: result routes: " + result.routes.length);
+                if(mPolyLinesData.size() > 0){
+                    for(PolylineData polylineData: mPolyLinesData){
+                        polylineData.getPolyline().remove();
+                    }
+                    mPolyLinesData.clear();
+                    mPolyLinesData = new ArrayList<>();
+                }
+
+                double duration = 999999999;
+                for(DirectionsRoute route: result.routes){
+                    Log.d(TAG, "run: leg: " + route.legs[0].toString());
+                    List<com.google.maps.model.LatLng> decodedPath = PolylineEncoding.decode(route.overviewPolyline.getEncodedPath());
+
+                    List<LatLng> newDecodedPath = new ArrayList<>();
+
+                    // This loops through all the LatLng coordinates of ONE polyline.
+                    for(com.google.maps.model.LatLng latLng: decodedPath){
+
+//                        Log.d(TAG, "run: latlng: " + latLng.toString());
+
+                        newDecodedPath.add(new LatLng(
+                                latLng.lat,
+                                latLng.lng
+                        ));
+                    }
+                    Polyline polyline = mGoogleMap.addPolyline(new PolylineOptions().addAll(newDecodedPath));
+                    polyline.setColor(ContextCompat.getColor(MainActivity.this, R.color.grey));
+                    polyline.setClickable(true);
+                    mPolyLinesData.add(new PolylineData(polyline, route.legs[0]));
+
+                    // highlight the fastest route and adjust camera
+                    double tempDuration = route.legs[0].duration.inSeconds;
+                    if(tempDuration < duration){
+                        duration = tempDuration;
+                        onPolylineClick(polyline);
+                        SetCamerViewOnRoute(polyline.getPoints());
+                    }
+
+                    mSelectedMarker.setVisible(false);
+                }
+            }
+        });
+    }
+
+
+    @Override
+    public void onPolylineClick(Polyline polyline) {
+
+        int index = 0;
+        for(PolylineData polylineData: mPolyLinesData){
+            index++;
+            Log.d(TAG, "onPolylineClick: toString: " + polylineData.toString());
+            if(polyline.getId().equals(polylineData.getPolyline().getId())){
+                polylineData.getPolyline().setColor(ContextCompat.getColor(MainActivity.this, R.color.blue));
+                polylineData.getPolyline().setZIndex(1);
+
+                LatLng endLocation = new LatLng(
+                        polylineData.getLeg().endLocation.lat,
+                        polylineData.getLeg().endLocation.lng
+                );
+
+                Marker marker = mGoogleMap.addMarker(new MarkerOptions()
+                        .position(endLocation)
+                        .title("Trip #" + index)
+                        .snippet("Duration: " + polylineData.getLeg().duration
+                        ));
+
+                mTripMarker.add(marker);
+
+                marker.showInfoWindow();
+            }
+            else{
+                polylineData.getPolyline().setColor(ContextCompat.getColor(MainActivity.this, R.color.grey));
+                polylineData.getPolyline().setZIndex(0);
+            }
+        }
+    }
+
+
+    private void resetSelectedMarker(){
+        if(mSelectedMarker != null){
+            mSelectedMarker.setVisible(true);
+            mSelectedMarker = null;
+            removeTripMarkers();
+        }
+    }
+
+    private void removeTripMarkers(){
+        for(Marker marker: mTripMarker){
+            marker.remove();
+        }
+    }
+
+    public void SetCamerViewOnRoute(List<LatLng> lstLatLngRoute) {
+
+        if (mGoogleMap == null || lstLatLngRoute == null || lstLatLngRoute.isEmpty()) return;
+
+        LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
+        for (LatLng latLngPoint : lstLatLngRoute)
+            boundsBuilder.include(latLngPoint);
+
+        int routePadding = 200;
+        LatLngBounds latLngBounds = boundsBuilder.build();
+
+        mGoogleMap.animateCamera(
+                CameraUpdateFactory.newLatLngBounds(latLngBounds, routePadding),
+                600,
+                null
+        );
+    }
+
+
+
+
+    /*
+    This method will be used when the user successfully arrives at the destination
+     */
+    //TODO add a button to allow the user to reset the map in case if he no longer wishes to travel to the given location
+    private void ClearMap(){
+        if(mGoogleMap != null) {
+            mGoogleMap.clear();
+
+            if(mPolyLinesData.size() > 0){
+                mPolyLinesData.clear();
+                mPolyLinesData = new ArrayList<>();
+            }
+        }
+    }
+
+
+
+
+
+
 
 
 
@@ -220,6 +447,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG,"geoLocate: found location" + address.toString());
             //Toast.makeText(this, address.toString(), Toast.LENGTH_SHORT).show();
             moveCamera(new LatLng(address.getLatitude(), address.getLongitude()), DEFAULT_ZOOM, address.getAddressLine(0) );
+            mGoogleMap.setOnInfoWindowClickListener(this);
         }
     }
 
@@ -532,7 +760,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             getLocationPermission();
         }
     }
-
 
 
 //    @Override

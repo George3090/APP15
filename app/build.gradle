@@ -49,9 +49,13 @@ dependencies {
     // Googele service
     implementation'com.google.android.gms:play-services-location:18.0.0'
     implementation 'com.google.android.gms:play-services-maps:17.0.0'
-    implementation 'com.google.maps:google-maps-services:0.2.9'
+    //implementation 'com.google.maps:google-maps-services:0.2.9'
     implementation 'org.slf4j:slf4j-nop:1.7.25'
     implementation 'com.google.android.libraries.places:places:2.4.0'
+
+    // Google Maps Services (needed for directions)
+    implementation 'com.google.maps:google-maps-services:0.18.0'
+    implementation 'org.slf4j:slf4j-nop:1.7.25'
 
 
 }
