@@ -9,19 +9,23 @@
     <item
 
         android:icon="@drawable/ic_phone"
-        android:title="Call Police"/>
+        android:title="Call Police"
+        android:id="@+id/Nav_Call_Police"/>
     <item
 
         android:icon="@drawable/ic_mail"
-        android:title="Messages"/>
+        android:title="Notification"
+        android:id="@+id/Nav_Notification"/>
     <item
 
         android:icon="@drawable/ic_settings"
-        android:title="Settings"/>
+        android:title="Settings"
+        android:id="@+id/Nav_settings"/>
     <item
 
         android:icon="@drawable/ic_signout"
-        android:title="Sign OUt"/>
+        android:title="Sign OUt"
+        android:id="@+id/Nav_Sign_Out"/>
     </group>
 
 

@@ -20,11 +20,13 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.nfc.Tag;
 import android.os.Bundle;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MenuItem;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.SearchView;
@@ -65,6 +67,7 @@ import com.google.android.gms.tasks.Task;
 
 //firebase
 import com.google.android.libraries.places.api.Places;
+import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -84,7 +87,7 @@ import com.google.maps.GeoApiContext;
 
 
 
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback{
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener {
     private static final String TAG = "MainActivity";
 
 
@@ -123,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean mLocationPermissionGranted = false;
     private FusedLocationProviderClient mFusedLocationClient;
     private UserLocation mUserLocation;
+    private static final int REQUEST_CALL = 1;
 
 
 
@@ -142,6 +146,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 R.string.navigation_drawer_close, R.string.navigation_drawer_close);
         drawer.addDrawerListener(toggle);
         toggle.syncState();
+        NavigationView navigationView = findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
 
 
         mDb = FirebaseFirestore.getInstance();
@@ -149,7 +155,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
 //        mMapView = (MapView) findViewById(R.id.map);
-        //initGoogleMap(savedInstanceState);
 
 
 
@@ -440,11 +445,50 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
+        // Navigation Menu
+
+    @Override
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        switch (item.getItemId()){
+            case R.id.Nav_Call_Police:
+                makePoliceCall();
+                break;
+            case R.id.Nav_Notification:
+                Toast.makeText(this, "Test1", Toast.LENGTH_SHORT).show();
+                break;
+
+            case R.id.Nav_settings:
+                Toast.makeText(this, "Test2", Toast.LENGTH_SHORT).show();
+                break;
+
+            case R.id.Nav_Sign_Out:
+                signOut();
+                break;
+        }
+    drawer.closeDrawer(GravityCompat.START);
+    return true;
+    }
 
 
+    public void signOut(){
+        FirebaseAuth.getInstance().signOut();
+        Intent intent = new Intent(this, Login.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+    }
 
+    private void makePoliceCall() {
+        String number = "999";
 
+        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(MainActivity.this, new String[] {Manifest.permission.CALL_PHONE}, REQUEST_CALL);
+        } else {
+            String dial = "tel:" + number;
+            startActivity(new Intent(Intent.ACTION_CALL, Uri.parse(dial)));
+        }
 
+    }
 
 
 
@@ -488,6 +532,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             getLocationPermission();
         }
     }
+
+
 
 //    @Override
 //    public void onStop() {
