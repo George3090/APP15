@@ -222,19 +222,30 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+
     @Override
     public void onInfoWindowClick(final Marker marker) {
-
-            final AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(marker.getSnippet())
+        if(marker.getTitle().contains("Trip #")){
+            final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setMessage("Open Google Maps?")
                     .setCancelable(true)
                     .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                         public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                            String latitude = String.valueOf(marker.getPosition().latitude);
+                            String longitude = String.valueOf(marker.getPosition().longitude);
+                            Uri gmmIntentUri = Uri.parse("google.navigation:q=" + latitude + "," + longitude);
+                            Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+                            mapIntent.setPackage("com.google.android.apps.maps");
 
-                            resetSelectedMarker();
-                            mSelectedMarker = marker;
-                            calculateDirections(marker);
-                            dialog.dismiss();
+                            try{
+                                if (mapIntent.resolveActivity(MainActivity.this.getPackageManager()) != null) {
+                                    startActivity(mapIntent);
+                                }
+                            }catch (NullPointerException e){
+                                Log.e(TAG, "onClick: NullPointerException: Couldn't open map." + e.getMessage() );
+                                Toast.makeText(MainActivity.this, "Couldn't open map", Toast.LENGTH_SHORT).show();
+                            }
+
                         }
                     })
                     .setNegativeButton("No", new DialogInterface.OnClickListener() {
@@ -244,9 +255,30 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     });
             final AlertDialog alert = builder.create();
             alert.show();
+        }
+            else{
+
+                final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setMessage(marker.getSnippet())
+                        .setCancelable(true)
+                        .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                            public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                                resetSelectedMarker();
+                                mSelectedMarker = marker;
+                                calculateDirections(marker);
+                                dialog.dismiss();
+                            }
+                        })
+                        .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                            public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                                dialog.cancel();
+                            }
+                        });
+                final AlertDialog alert = builder.create();
+                alert.show();
+            }
 
     }
-
 
     /*
     Adding polylines to the map
