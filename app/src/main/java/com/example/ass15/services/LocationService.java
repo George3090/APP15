@@ -36,6 +36,7 @@ import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.messaging.RemoteMessage;
 
 
+
 public class LocationService extends Service {
 
     private static final String TAG = "LocationService";
@@ -102,8 +103,8 @@ public class LocationService extends Service {
                     public void onLocationResult(LocationResult locationResult) {
 
                         Log.d(TAG, "onLocationResult: got location result.");
-
                         Location location = locationResult.getLastLocation();
+
 
                         if (location != null) {
                             User user = ((UserClient)(getApplicationContext())).getUser();

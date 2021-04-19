@@ -15,13 +15,10 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
-import android.location.Criteria;
 import android.location.Geocoder;
 import android.location.Location;
-import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
-import android.nfc.Tag;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -30,7 +27,6 @@ import android.view.KeyEvent;
 import android.view.MenuItem;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
-import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -39,13 +35,11 @@ import com.example.ass15.Models.PolylineData;
 import com.example.ass15.Models.User;
 import com.example.ass15.Models.UserLocation;
 import com.example.ass15.UserClient;
+import com.example.ass15.services.JavaMailAPI;
 import com.example.ass15.services.LocationService;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationCallback;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -62,8 +56,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
-import androidx.fragment.app.FragmentActivity;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.model.Polyline;
@@ -72,7 +64,6 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 
 //firebase
-import com.google.android.libraries.places.api.Places;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
@@ -92,6 +83,7 @@ import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FIN
 import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
 import com.google.maps.PendingResult;
+import com.google.maps.android.PolyUtil;
 import com.google.maps.internal.PolylineEncoding;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
@@ -99,7 +91,8 @@ import com.google.maps.model.DirectionsRoute;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
         GoogleMap.OnInfoWindowClickListener,
-        GoogleMap.OnPolylineClickListener{
+        GoogleMap.OnPolylineClickListener,
+        Password_Dialog.PasswordDialogListener {
     private static final String TAG = "MainActivity";
 
 
@@ -124,6 +117,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mGoogleMap.setOnPolylineClickListener(this);
     }
 
+
     //Widgets
     private MapView mMapView;
     private DrawerLayout drawer;
@@ -132,8 +126,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FirebaseFirestore mDb;
     public EditText mSearchBox;
 
-
-    //VAR
+    //Variables
     private static final String MAPVIEW_BUNDLE_KEY = "MapViewBundleKey";
     private boolean mLocationPermissionGranted = false;
     private FusedLocationProviderClient mFusedLocationClient;
@@ -143,8 +136,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ArrayList<PolylineData> mPolyLinesData = new ArrayList<>();
     private ArrayList<Marker> mTripMarker = new ArrayList<>();
     private Marker mSelectedMarker = null;
+    public List<LatLng> mList;
+    private boolean UserArrivedAtTheDestination = false;
 
-
+    private final static int INTERVAL = 1000 * 30 * 1; //1 minutes
+    Handler mHandler = new Handler();
+    private String mPasswordcheck;
 
 
     @Override
@@ -154,7 +151,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
 
         //Nav bar
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -170,10 +166,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mDb = FirebaseFirestore.getInstance();
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-
 //        mMapView = (MapView) findViewById(R.id.map);
-
-
 
         getUserDetails(); // this should be called once the system checks map services
         //mSearchBox = findViewById(R.id.input_search);
@@ -188,6 +181,38 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
     }
+
+    Runnable mHandlerTask = new Runnable()
+    {
+        @Override
+        public void run() {
+            if (mList != null) {
+            getLastKnownLocation();
+            CheckIfUserLocationIsOnPath();
+            }
+            mHandler.postDelayed(mHandlerTask, INTERVAL);
+        }
+    };
+
+    void startRepeatingTask()
+    {
+        mHandlerTask.run();
+    }
+
+    void stopRepeatingTask()
+    {
+        mHandler.removeCallbacks(mHandlerTask);
+    }
+
+
+
+
+
+
+
+
+
+
 
     private void calculateDirections(Marker marker){
         Log.d(TAG, "calculateDirections: calculating directions.");
@@ -227,7 +252,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onInfoWindowClick(final Marker marker) {
         if(marker.getTitle().contains("Trip #")){
             final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setMessage("Open Google Maps?")
+            builder.setMessage("Open Google Maps?" +
+                    "  If you select yes the application will enter 'Safe Mode'")
                     .setCancelable(true)
                     .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                         public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
@@ -240,13 +266,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             try{
                                 if (mapIntent.resolveActivity(MainActivity.this.getPackageManager()) != null) {
                                     startActivity(mapIntent);
+
                                 }
-                            }catch (NullPointerException e){
+                            } catch (NullPointerException e){
                                 Log.e(TAG, "onClick: NullPointerException: Couldn't open map." + e.getMessage() );
                                 Toast.makeText(MainActivity.this, "Couldn't open map", Toast.LENGTH_SHORT).show();
                             }
 
                         }
+
                     })
                     .setNegativeButton("No", new DialogInterface.OnClickListener() {
                         public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
@@ -255,11 +283,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     });
             final AlertDialog alert = builder.create();
             alert.show();
+
+
+
+            startRepeatingTask(); // this checks if the user is on the route on a given time interval
         }
             else{
 
                 final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                builder.setMessage(marker.getSnippet())
+                builder.setMessage("Calculate directions?")
                         .setCancelable(true)
                         .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                             public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
@@ -303,6 +335,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     List<com.google.maps.model.LatLng> decodedPath = PolylineEncoding.decode(route.overviewPolyline.getEncodedPath());
 
                     List<LatLng> newDecodedPath = new ArrayList<>();
+                    mList = newDecodedPath;
 
                     // This loops through all the LatLng coordinates of ONE polyline.
                     for(com.google.maps.model.LatLng latLng: decodedPath){
@@ -359,6 +392,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mTripMarker.add(marker);
 
                 marker.showInfoWindow();
+
             }
             else{
                 polylineData.getPolyline().setColor(ContextCompat.getColor(MainActivity.this, R.color.grey));
@@ -402,7 +436,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
 
-
     /*
     This method will be used when the user successfully arrives at the destination
      */
@@ -419,6 +452,100 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
+/*
+     3 Point contact (detecting anomalies in user behaviour that will indicate that the user may be in danger)
+ */
+
+    // Stage 1: The user has deviated from the intended route
+
+    public void CheckIfUserLocationIsOnPath(){
+        LatLng user = (
+                new LatLng(
+                        mUserLocation.getGeo_point().getLatitude(),
+                        mUserLocation.getGeo_point().getLongitude()
+                ));
+
+        if(PolyUtil.isLocationOnPath(user, mList, true,15)){
+
+        }
+
+        else {
+
+            openDialog();
+
+            // Add logic Dialog Fragment
+
+        }
+    }
+
+
+
+    // stage 2: The user has not arrived at the location
+
+
+
+    // Stage 3: The user accelerometer indicated that the user may be in danger
+
+
+
+    //Prompt the user to enter password
+    public void openDialog(){
+        Password_Dialog password_dialog = new Password_Dialog();
+        password_dialog.show(getSupportFragmentManager(),"Password Dialog");
+    }
+
+    @Override
+    public void applyText(String password) {
+        mPasswordcheck = password;
+        if(password.equals("test")){
+            final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            builder.setMessage("Your trip will ben now cancelled")
+                    .setPositiveButton("Yes", new DialogInterface.OnClickListener(){
+
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    stopRepeatingTask();
+                                    ClearMap();
+                                }
+                            })
+
+                    .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                        public void onClick( DialogInterface dialog, int which) {
+
+                        }
+                    });
+            final AlertDialog alert = builder.create();
+            alert.show();
+            Toast.makeText(this, "Password is right", Toast.LENGTH_SHORT).show();
+
+        }
+        // Add a password backwards functionality
+
+        //Password is wrong
+        else {
+            Toast.makeText(this, "Password is wrong", Toast.LENGTH_SHORT).show();
+
+            // send email to the police
+            sendEmail();
+            ClearMap();
+
+
+        }
+
+
+    }
+
+    //Alerting Police
+    private void sendEmail() {
+        String mEmail = "ass15alertingpolice@gmail.com";
+        String mSubject = "test";
+        String mMessage = "test";
+        JavaMailAPI javaMailAPI = new JavaMailAPI(this, mEmail, mSubject, mMessage);
+
+        javaMailAPI.execute();
+    }
+
+    //Adding record in notification page with the alert(so in case of a false alert the user is able to cancel it)
 
 
 
@@ -507,6 +634,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 MainActivity.this.startForegroundService(serviceIntent);
             } else {
                 startService(serviceIntent);
+
             }
         }
     }
@@ -567,6 +695,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     saveUserLocation();
                     startLocationService();
+
                 }
             }
         });
@@ -587,15 +716,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             });
         }
     }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -705,8 +825,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
-        // Navigation Menu
-
+/*
+         Navigation Menu
+*/
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         switch (item.getItemId()){
@@ -728,7 +849,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     drawer.closeDrawer(GravityCompat.START);
     return true;
     }
-
 
     public void signOut(){
         FirebaseAuth.getInstance().signOut();
@@ -766,6 +886,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+
+
 //    @Override
 //    public void onSaveInstanceState(Bundle outState) {
 //        super.onSaveInstanceState(outState);
@@ -780,18 +902,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 //        getUserDetails();
 //    }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-//        mMapView.onResume();
-        if (checkMapServices()) {
-            if (mLocationPermissionGranted) {
-                getUserDetails();
-            }
-        } else {
-            getLocationPermission();
-        }
-    }
+//    @Override
+//    public void onResume() {
+//        super.onResume();
+////        mMapView.onResume();
+//        if (checkMapServices()) {
+//            if (mLocationPermissionGranted) {
+//                getUserDetails();
+//            }
+//        } else {
+//            getLocationPermission();
+//        }
+//    }
 
 
 //    @Override
