@@ -470,9 +470,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         else {
-
             openDialog();
-
             // Add logic Dialog Fragment
 
         }
@@ -496,7 +494,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void applyText(String password) {
-        mPasswordcheck = password;
+//        mPasswordcheck =
         if(password.equals("test")){
             final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
             builder.setMessage("Your trip will ben now cancelled")
