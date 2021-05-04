@@ -22,6 +22,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.format.Time;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MenuItem;
@@ -74,11 +75,14 @@ import com.google.firebase.firestore.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Timer;
 
 import static com.example.ass15.Utility.Constants.ERROR_DIALOG_REQUEST;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ENABLE_GPS;
 import static com.example.ass15.Utility.Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION;
+import static java.lang.Math.sqrt;
 
 import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
@@ -138,6 +142,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Marker mSelectedMarker = null;
     public List<LatLng> mList;
     private boolean UserArrivedAtTheDestination = false;
+    private double mtripDuration;
+    public static long Passwordcount = 0;
 
     private final static int INTERVAL = 1000 * 30 * 1; //1 minutes
     Handler mHandler = new Handler();
@@ -189,6 +195,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (mList != null) {
             getLastKnownLocation();
             CheckIfUserLocationIsOnPath();
+            CheckIfUserArrivedAtDestination();
             }
             mHandler.postDelayed(mHandlerTask, INTERVAL);
         }
@@ -203,14 +210,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     {
         mHandler.removeCallbacks(mHandlerTask);
     }
-
-
-
-
-
-
-
-
 
 
 
@@ -353,6 +352,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     mPolyLinesData.add(new PolylineData(polyline, route.legs[0]));
 
                     // highlight the fastest route and adjust camera
+                    mtripDuration = route.legs[0].duration.inSeconds;
                     double tempDuration = route.legs[0].duration.inSeconds;
                     if(tempDuration < duration){
                         duration = tempDuration;
@@ -479,10 +479,28 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     // stage 2: The user has not arrived at the location
+    public void CheckIfUserArrivedAtDestination(){
+        LatLng user = (
+                new LatLng(
+                        mUserLocation.getGeo_point().getLatitude(),
+                        mUserLocation.getGeo_point().getLongitude()
+                ));
+        LatLng destination = mList.get(mList.size()-1);
+        double estimateArrival = mtripDuration/60*5.5;
+        Timer timer = new Timer(String.valueOf(estimateArrival));
 
+        if(PolyUtil.isLocationOnPath(user, Collections.singletonList(destination), true,35)){
+            // user arrived at destination
+            Toast.makeText(this, "You have arrived ", Toast.LENGTH_SHORT).show();
+            stopRepeatingTask();
+            ClearMap();
+        }
+
+    }
 
 
     // Stage 3: The user accelerometer indicated that the user may be in danger
+
 
 
 
@@ -490,14 +508,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void openDialog(){
         Password_Dialog password_dialog = new Password_Dialog();
         password_dialog.show(getSupportFragmentManager(),"Password Dialog");
+        stopRepeatingTask();
     }
 
     @Override
     public void applyText(String password) {
-//        mPasswordcheck =
-        if(password.equals("test")){
+        User currentUser = ((UserClient)(getApplicationContext())).getUser();
+        //currentUser.getEmail();
+        if(password.equals(currentUser.getEmail())){
+            Passwordcount = 0 ;
             final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-            builder.setMessage("Your trip will ben now cancelled")
+            builder.setMessage("Would you like to cancel the trip")
                     .setPositiveButton("Yes", new DialogInterface.OnClickListener(){
 
                                 @Override
@@ -509,7 +530,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     .setNegativeButton("No", new DialogInterface.OnClickListener() {
                         public void onClick( DialogInterface dialog, int which) {
-
+                            //startRepeatingTask();
                         }
                     });
             final AlertDialog alert = builder.create();
@@ -517,27 +538,34 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             Toast.makeText(this, "Password is right", Toast.LENGTH_SHORT).show();
 
         }
-        // Add a password backwards functionality
-
-        //Password is wrong
-        else {
-            Toast.makeText(this, "Password is wrong", Toast.LENGTH_SHORT).show();
-
-            // send email to the police
+        // Check if user inserted passwords 4 times
+        else if (Passwordcount>2){
             sendEmail();
             ClearMap();
-
-
+            Passwordcount = 0 ;
         }
+        //Password is wrong
+        else {
+            Passwordcount++; //this will cound how many times the user will enter the password
+            Toast.makeText(this, "Password is wrong", Toast.LENGTH_SHORT).show();
+            openDialog();
+        }
+
 
 
     }
 
     //Alerting Police
     private void sendEmail() {
+        String newline = System.getProperty("line.separator");
+        User currentUser = ((UserClient)(getApplicationContext())).getUser();
+        UserLocation currentLocation = ((UserClient)(getApplicationContext())).getUserLocation();
         String mEmail = "ass15alertingpolice@gmail.com";
-        String mSubject = "test";
-        String mMessage = "test";
+        String mSubject = "User:" + currentUser.getUsername() + "  is in danger";
+        String mMessage = "User details:" +"   "+ currentUser.getUsername()
+                +newline+"User Email: " + currentUser.getEmail()
+                +newline+"Age: "+ currentUser.getAge()
+                +newline+"Last known location: "+ currentLocation.getGeo_point();
         JavaMailAPI javaMailAPI = new JavaMailAPI(this, mEmail, mSubject, mMessage);
 
         javaMailAPI.execute();
