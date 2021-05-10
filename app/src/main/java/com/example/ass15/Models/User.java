@@ -9,15 +9,21 @@ public class User implements Parcelable {
     private String user_id;
     private String username;
     private String age;
+    private String FullName;
+    private String Password;
+    private String PhoneNr;
 
 
 
 
-    public User(String email, String user_id, String username, String age) {
+    public User(String email, String user_id, String username, String age, String FullName, String Password, String PhoneNr) {
         this.email = email;
         this.user_id = user_id;
         this.username = username;
         this.age = age;
+        this.FullName = FullName;
+        this.Password = Password;
+        this.PhoneNr = PhoneNr;
     }
 
     public User() {
@@ -29,6 +35,9 @@ public class User implements Parcelable {
         user_id = in.readString();
         username = in.readString();
         age = in.readString();
+        FullName=in.readString();
+        Password = in.readString();
+
     }
 
     public static final Creator<User> CREATOR = new Creator<User>() {
@@ -80,6 +89,31 @@ public class User implements Parcelable {
         this.age = age;
     }
 
+    public String getFullName() {
+        return FullName;
+    }
+
+    public void setFullName(String FullName) {
+        this.FullName = FullName;
+    }
+
+    public String getPassword() {
+        return Password;
+    }
+
+    public void setPassword(String Password) {
+        this.Password = Password;
+    }
+
+    public String getPhoneNr() {
+        return PhoneNr;
+    }
+
+    public void setPhoneNr(String PhoneNr) {
+        this.PhoneNr = PhoneNr;
+    }
+
+
 
 
     @Override
@@ -89,6 +123,9 @@ public class User implements Parcelable {
                 ", user_id='" + user_id + '\'' +
                 ", username='" + username + '\'' +
                 ", age='" + age + '\'' +
+                ", FullName='" + FullName + '\''+
+                ", Password='" + Password + '\''+
+                ", PhoneNr='" + PhoneNr + '\''+
                 '}';
     }
 
@@ -103,6 +140,9 @@ public class User implements Parcelable {
         dest.writeString(user_id);
         dest.writeString(username);
         dest.writeString(age);
+        dest.writeString(FullName);
+        dest.writeString(Password);
+        dest.writeString(PhoneNr);
     }
 
 

@@ -100,7 +100,7 @@ public class Register extends AppCompatActivity {
                     return;
                 }
                 else {
-                    registerNewEmail(Email, Password, Age, FullName);
+                    registerNewEmail(Email, Password, Age, FullName, PhoneNr);
                 }
 
                 /**
@@ -131,7 +131,7 @@ public class Register extends AppCompatActivity {
 //
             }
 
-            private void registerNewEmail(String Email, String Password, String Age, String Fullname) {
+            private void registerNewEmail(String Email, String Password, String Age, String Fullname, String PhoneNr) {
 
                 FirebaseAuth.getInstance().createUserWithEmailAndPassword(Email, Password)
                         .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
@@ -146,6 +146,9 @@ public class Register extends AppCompatActivity {
                                     User user = new User();
                                     user.setEmail(Email);
                                     user.setAge(Age);
+                                    user.setFullName(Fullname);
+                                    user.setPassword(Password);
+                                    user.setPhoneNr(PhoneNr);
                                     user.setUsername(Email);
                                     user.setUsername(Email.substring(0, Email.indexOf("@")));
                                     user.setUser_id(FirebaseAuth.getInstance().getUid());

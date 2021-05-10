@@ -20,6 +20,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.format.Time;
@@ -91,6 +92,8 @@ import com.google.maps.android.PolyUtil;
 import com.google.maps.internal.PolylineEncoding;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
+
+
 
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
@@ -465,7 +468,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         mUserLocation.getGeo_point().getLongitude()
                 ));
 
-        if(PolyUtil.isLocationOnPath(user, mList, true,15)){
+        if(PolyUtil.isLocationOnPath(user, mList, true,35)){
 
         }
 
@@ -486,8 +489,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         mUserLocation.getGeo_point().getLongitude()
                 ));
         LatLng destination = mList.get(mList.size()-1);
-        double estimateArrival = mtripDuration/60*5.5;
-        Timer timer = new Timer(String.valueOf(estimateArrival));
+        double estimateArrival = mtripDuration;
+
+//        //This will check if the user arrived at the destination
+//        long startTime = Long.valueOf((long) estimateArrival);
+//        new CountDownTimer(startTime, 1000) {
+//            @Override
+//            public void onTick(long millisUntilFinished) {
+//
+//            }
+//
+//            @Override
+//            public void onFinish() {
+//                openDialog();
+//
+//            }
+//        }.start()
+        ;
+
+
 
         if(PolyUtil.isLocationOnPath(user, Collections.singletonList(destination), true,35)){
             // user arrived at destination
@@ -515,7 +535,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void applyText(String password) {
         User currentUser = ((UserClient)(getApplicationContext())).getUser();
         //currentUser.getEmail();
-        if(password.equals(currentUser.getEmail())){
+        if(password.equals(currentUser.getPassword())){
             Passwordcount = 0 ;
             final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
             builder.setMessage("Would you like to cancel the trip")
@@ -541,6 +561,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Check if user inserted passwords 4 times
         else if (Passwordcount>2){
             sendEmail();
+            sendEmailConfirmation();
             ClearMap();
             Passwordcount = 0 ;
         }
@@ -561,11 +582,26 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         User currentUser = ((UserClient)(getApplicationContext())).getUser();
         UserLocation currentLocation = ((UserClient)(getApplicationContext())).getUserLocation();
         String mEmail = "ass15alertingpolice@gmail.com";
-        String mSubject = "User:" + currentUser.getUsername() + "  is in danger";
+        String mSubject = "User:" + currentUser.getFullName() + "  is in danger";
         String mMessage = "User details:" +"   "+ currentUser.getUsername()
+                +newline+"User Full Name: " + currentUser.getFullName()
                 +newline+"User Email: " + currentUser.getEmail()
                 +newline+"Age: "+ currentUser.getAge()
+                +newline+"Phone Nr: "+ currentUser.getPhoneNr()
                 +newline+"Last known location: "+ currentLocation.getGeo_point();
+        JavaMailAPI javaMailAPI = new JavaMailAPI(this, mEmail, mSubject, mMessage);
+
+        javaMailAPI.execute();
+    }
+    //This will send an email confirmation to the user
+    private void sendEmailConfirmation() {
+        String newline = System.getProperty("line.separator");
+        User currentUser = ((UserClient)(getApplicationContext())).getUser();
+        UserLocation currentLocation = ((UserClient)(getApplicationContext())).getUserLocation();
+        String mEmail = currentUser.getEmail();
+        String mSubject = "" + currentUser.getFullName() + " You have notified the police";
+        String mMessage = "Dear" +"   "+ currentUser.getFullName()
+                +newline+" As we are concerned that you may be in danger, a notification was sent to the police. If you are not in danger please contact the police on 999 to cancel the investigation";
         JavaMailAPI javaMailAPI = new JavaMailAPI(this, mEmail, mSubject, mMessage);
 
         javaMailAPI.execute();
@@ -861,7 +897,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 makePoliceCall();
                 break;
             case R.id.Nav_Notification:
-                Toast.makeText(this, "Test1", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(this, "Test1", Toast.LENGTH_SHORT).show();
+                CancelCurrentTrip();
                 break;
 
             case R.id.Nav_settings:
@@ -893,6 +930,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             String dial = "tel:" + number;
             startActivity(new Intent(Intent.ACTION_CALL, Uri.parse(dial)));
         }
+
+    }
+    private void CancelCurrentTrip(){
+        openDialog();
 
     }
 

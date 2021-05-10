@@ -91,7 +91,7 @@ public class Login extends AppCompatActivity implements View.OnClickListener {
 
 
   /*
-        ----------------------------- Firebase setup ---------------------------------
+   Firebase
      */
     private void setupFirebaseAuth(){
         //Log.d(TAG, "setupFirebaseAuth: started.");

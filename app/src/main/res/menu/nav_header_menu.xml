@@ -13,8 +13,8 @@
         android:id="@+id/Nav_Call_Police"/>
     <item
 
-        android:icon="@drawable/ic_mail"
-        android:title="Notification"
+        android:icon="@drawable/quantum_ic_clear_grey600_24"
+        android:title="Cancel Current Trip"
         android:id="@+id/Nav_Notification"/>
     <item
 
