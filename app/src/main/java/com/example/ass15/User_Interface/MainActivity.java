@@ -93,13 +93,20 @@ import com.google.maps.internal.PolylineEncoding;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
 
+// Accelerometer
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+
 
 
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, NavigationView.OnNavigationItemSelectedListener,
         GoogleMap.OnInfoWindowClickListener,
         GoogleMap.OnPolylineClickListener,
-        Password_Dialog.PasswordDialogListener {
+        Password_Dialog.PasswordDialogListener,
+        SensorEventListener {
     private static final String TAG = "MainActivity";
 
 
@@ -151,6 +158,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final static int INTERVAL = 1000 * 30 * 1; //1 minutes
     Handler mHandler = new Handler();
     private String mPasswordcheck;
+    private Sensor mySensor;
+    private SensorManager SM;
 
 
     @Override
@@ -189,7 +198,31 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .build();
         }
 
+        // Accelerometer
+        SM = (SensorManager) getSystemService(SENSOR_SERVICE);
+
+        mySensor = SM.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
+        SM.registerListener(this, mySensor, SensorManager.SENSOR_DELAY_NORMAL);
     }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
+    @Override
+    public void onSensorChanged(SensorEvent event){
+        int xValue, yValue, zValue;
+
+        xValue = (int) event.values[0];
+        yValue = (int) event.values[1];
+        zValue = (int) event.values[2];
+
+        if ((xValue > 1.5 && xValue < 3) || ((yValue > 1.5) && (yValue < 3)) || ((zValue > 1.5) && (zValue > 3))){
+            sendEmail();
+            makePoliceCall();
+        }
+    }
+
 
     Runnable mHandlerTask = new Runnable()
     {
