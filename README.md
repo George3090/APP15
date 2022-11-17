@@ -1,4 +1,4 @@
-# CCST - Cardiff Citizen Security Technologies 
+# ASS15 - Active Security System 15
 A mobile application designed to improve security of
 individuals traveling during night time.
 A project based on Cardiff Council requirements
